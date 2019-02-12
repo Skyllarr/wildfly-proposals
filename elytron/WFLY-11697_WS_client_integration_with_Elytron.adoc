@@ -1,0 +1,75 @@
+= WFLY-11697 WS integration with WildFly Elytron - AuthenticationClient for Authentication / SSL
+:author:            Diana Vilkolakova
+:email:             dvilkola@redhat.com
+:toc:               left
+:icons:             font
+:keywords:          elytron, client, webservices
+:idprefix:
+:idseparator:       -
+
+== Overview
+
+The wildfly-config.xml file is used on the client side and it contains the authentication configuration that should be used
+when attempting to connect to the server (username, password, ssl config, mechanism specification etc).
+It can either be included with the client application or specified using the -Dwildfly.config.url property when running the client.
+This requested feature is about making use of wildfly-config.xml file on the client side of WS deployment.
+
+== Issue Metadata
+
+=== Issue
+
+* https://issues.jboss.org/browse/WFLY-11697[WFLY-11697]
+
+=== Related Issues
+
+* https://issues.jboss.org/browse/EAP7-1097[EAP7-1097]
+
+=== Dev Contacts
+
+* mailto:dvilkola@redhat.com[Diana Vilkolakova]
+
+=== QE Contacts
+
+* TBD
+
+=== Affected Projects or Components
+
+* Security
+* Web Services
+
+=== Other Interested Projects
+
+N/A
+
+== Requirements
+
+=== Hard Requirements
+Web Services client must be able to make use of authentication configuration specified for Elytron.
+The authentication configuration from wildfly-config.xml file will be parsed and made available for WS client either by default or by calling new method that will be added for this purpose.
+
+=== Nice-to-Have Requirements
+
+=== Non-Requirements
+
+== Implementation Plan
+
+Additional SPI will be defined in https://github.com/jbossws/jbossws-spi[jbossws-spi] repository and the providers (Elytron) will be used during the configuration of client.
+
+JBossWS API comes with facility classes that can be used for assigning configurations when building a client.
+https://github.com/jbossws/jbossws-common/blob/master/src/main/java/org/jboss/ws/common/configuration/ConfigHelper.java[ConfigHelper] class implements interface https://github.com/jbossws/jbossws-api/blob/master/src/main/java/org/jboss/ws/api/configuration/ClientConfigurer.java[ClientConfigurer] that provides method setConfigHandlers.
+The existence of SPI provider and Elytron integration might be added here. The configuration file will be parsed and the handlers for the request will be added accordingly.
+
+The method setConfigHandlers takes client config file as a parameter.
+This file adheres to the schema
+http://anonsvn.jboss.org/repos/jbossws/spi/tags/jbossws-spi-2.1.0.Beta1/src/main/resources/schema/jbossws-jaxws-config_4_0.xsd[jbossws-jaxws-config schema] defined in jbossws-spi.
+Possible solutions are:
+
+* schema of wildfly-config.xml file and jaxws-config file could be combined and user can specify everything in single file
+* these configs will stay separate and user will provide paths to both files (if some information is conflicting, wildfly-config.xml setting takes precedence?)
+* the existence of wildfly-config.xml and its processing will be done by default in setConfigHandlers method
+* new method for this config file will be added (the use could look like this: `configurerBuilder.setConfigHandlers().setAuthHandlers().build()`)
+
+
+== Test Plan
+
+Functionality tests in Wildfly testsuite.
