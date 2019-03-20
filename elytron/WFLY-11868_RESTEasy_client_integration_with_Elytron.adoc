@@ -1,0 +1,86 @@
+= WFLY-11868 REST integration with WildFly Elytron - AuthenticationClient for Authentication / SSL
+:author:            Diana Vilkolakova
+:email:             dvilkola@redhat.com
+:toc:               left
+:icons:             font
+:keywords:          elytron, client, resteasy
+:idprefix:
+:idseparator:       -
+
+== Overview
+
+Wildfly-config.xml file is used by Elytron client and it contains the authentication configuration that should be used
+when attempting to connect to the server (username, password, ssl config, mechanism specification etc).
+This requested feature is about making use of Elytron and wildfly-config.xml file on the client side of REST deployment.
+
+== Issue Metadata
+
+=== Issue
+
+* https://issues.jboss.org/browse/WFLY-11868[WFLY-11868]
+
+=== Related Issues
+
+* https://issues.jboss.org/browse/EAP7-1219[EAP7-1219]
+
+=== Dev Contacts
+
+* mailto:dvilkola@redhat.com[Diana Vilkolakova]
+
+=== QE Contacts
+
+* TBD
+
+=== Affected Projects or Components
+
+* Security
+* RESTEasy
+
+=== Other Interested Projects
+
+N/A
+
+== Requirements
+
+=== Hard Requirements
+
+It must be possible to use authentication configuration specified for Elytron in the wildfly-config.xml file with RESTEasy client.
+
+=== Nice-to-Have Requirements
+
+=== Non-Requirements
+
+== Implementation Plan
+
+To parse wildfly-config.xml configuration and set authentication without introducing Elytron dependency, new module with exposed SPI will be added to RESTEasy that Elytron will implement.
+This SPI will be used during configuration of client in RESTEasyClientBuilder class, either
+
+* in the constructor of RESTEasyClientBuilder
+* in setter method that will be added to RESTEasyClientBuilder class
+* (or in the build method, but this is probably unwanted since user can define some configuration info explicitly before building the client and this would override it)
+
+
+#### Multiple SSLContexts set in RESTEasy client
+
+Wildfly-config.xml file can contain SSL config (SSLContexts with truststores, keystores, etc).
+It can configure multiple SSLContexts. Rules are then applied to each request to conclude which SSLContext should be used. Evaluation of rules can take path, port, etc. into account.
+However, RESTEasy client instance can contain only single SSLContext right now.
+To invoke requests, the client uses single instance of ClientHttpEngine interface implementation, which can have only one SSLContext defined.
+
+ClientHttpEngineBuilder sets SSLConnectionSocketFactory during build. SSLConnectionSocketFactory prepares and creates sockets with specific SSLContext.
+During creation of socket, SSLConnectionSocketFactory can make use of HttpContext received from the engine (HttpContext has various useful attributes defined).
+
+So to be able to configure multiple SSLContexts for RESTEasy client, there are 2 solutions I could think of:
+
+* Have multiple ClientHttpEngines defined for one client.
+* Add a new implementation of SSLConnectionSocketFactory which will behave as a wrapper that will resolve which SSLContext to use and then delegate the creation of socket to appropriate SSLConnectionSocketFactory instance according to the rules.
+The wrapper could decide which SSLContext to use based on HTTPContext's attributes it receives from the apache engine in createSocket and connectSocket methods (org.apache.http.conn.socket.ConnectionSocketFactory).
+
+#### RequestClientFilters and ResponseClientFilters
+
+For the authentication information that should be present in each request (eg. token), RequestClientFilter will be registered.
+To process server response (eg receiving of token), ResponseClientFilter can be used.
+
+== Test Plan
+
+Functionality tests in Wildfly testsuite.
